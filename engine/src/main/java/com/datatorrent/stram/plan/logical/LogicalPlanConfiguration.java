@@ -117,7 +117,7 @@ public class LogicalPlanConfiguration {
    */
   protected enum StramElement {
     APPLICATION("application"), GATEWAY("gateway"), TEMPLATE("template"), OPERATOR("operator"),STREAM("stream"), PORT("port"), INPUT_PORT("inputport"),OUTPUT_PORT("outputport"),
-    ATTR("attr"), PROP("prop"),CLASS("class"),PATH("path");
+    ATTR("attr"), PROP("prop"),CLASS("class"),PATH("path"),UNIFIER("unifier");
     private final String value;
 
     /**
@@ -165,7 +165,8 @@ public class LogicalPlanConfiguration {
     GATEWAY(StramElement.GATEWAY, ConfElement.APPLICATION, EnumSet.noneOf(StramElement.class), null),
     OPERATOR(StramElement.OPERATOR, ConfElement.APPLICATION, EnumSet.noneOf(StramElement.class), OperatorContext.class),
     STREAM(StramElement.STREAM, ConfElement.APPLICATION, EnumSet.noneOf(StramElement.class), null),
-    PORT(StramElement.PORT, ConfElement.OPERATOR, EnumSet.of(StramElement.INPUT_PORT, StramElement.OUTPUT_PORT), PortContext.class);
+    PORT(StramElement.PORT, ConfElement.OPERATOR, EnumSet.of(StramElement.INPUT_PORT, StramElement.OUTPUT_PORT), PortContext.class),
+    UNIFIER(StramElement.UNIFIER, ConfElement.PORT, EnumSet.noneOf(StramElement.class), OperatorContext.class);
 
     public static final Map<StramElement, ConfElement> STRAM_ELEMENT_TO_CONF_ELEMENT = Maps.newHashMap();
     public static final Map<Class<? extends Context>, ConfElement> CONTEXT_TO_CONF_ELEMENT = Maps.newHashMap();
@@ -179,6 +180,7 @@ public class LogicalPlanConfiguration {
       STRAM.setChildren(Sets.newHashSet(APPLICATION, TEMPLATE));
       APPLICATION.setChildren(Sets.newHashSet(GATEWAY, OPERATOR, STREAM));
       OPERATOR.setChildren(Sets.newHashSet(PORT));
+      PORT.setChildren(Sets.newHashSet(UNIFIER));
 
       STRAM_ELEMENT_TO_CONF_ELEMENT.clear();
 
@@ -1436,7 +1438,7 @@ public class LogicalPlanConfiguration {
    */
   private static class PortConf extends Conf {
 
-    private static final StramElement[] CHILD_ELEMENTS = new StramElement[] {StramElement.ATTR};
+    private static final StramElement[] CHILD_ELEMENTS = new StramElement[] {StramElement.ATTR, StramElement.UNIFIER};
 
     @SuppressWarnings("unused")
     PortConf() {
@@ -1467,6 +1469,7 @@ public class LogicalPlanConfiguration {
     elementMaps.put(StramElement.PORT, PortConf.class);
     elementMaps.put(StramElement.INPUT_PORT, PortConf.class);
     elementMaps.put(StramElement.OUTPUT_PORT, PortConf.class);
+    elementMaps.put(StramElement.UNIFIER, OperatorConf.class);
   }
 
   /**
@@ -1736,6 +1739,8 @@ public class LogicalPlanConfiguration {
         parseAppElement(index, keys, element, conf, propertyName, propertyValue);
       } else if ((element == StramElement.GATEWAY)) {
         parseGatewayElement(element, conf, keys, index, propertyName, propertyValue);
+      } else if ((element == StramElement.UNIFIER)) {
+        parseUnifierElement(element, conf, keys, index, propertyName, propertyValue);
       } else if ((element == StramElement.ATTR) || ((element == null) && (conf.getDefaultChildElement() == StramElement.ATTR))) {
         parseAttributeElement(element, keys, index, conf, propertyValue, propertyName);
       } else if ((element == StramElement.PROP) || ((element == null) && (conf.getDefaultChildElement() == StramElement.PROP))) {
@@ -1778,6 +1783,24 @@ public class LogicalPlanConfiguration {
    * @param propertyName The complete unprocessed name of the property being parsed.
    */
   private void parseGatewayElement(StramElement element, Conf conf1, String[] keys, int index, String propertyName, String propertyValue)
+  {
+    Conf elConf = addConf(element, null, conf1);
+    if (elConf != null) {
+      parseStramPropertyTokens(keys, index+1, propertyName, propertyValue, elConf);
+    } else {
+      LOG.error("Invalid configuration key: {}", propertyName);
+    }
+  }
+
+  /**
+   * This is a helper method for {@link #parseStramPropertyTokens} which is responsible for parsing a unifier element.
+   * @param element The current {@link StramElement} of the property being parsed.
+   * @param keys The keys that the property being parsed was split into.
+   * @param index The current key that the parser is on.
+   * @param propertyValue The value associated with the property being parsed.
+   * @param propertyName The complete unprocessed name of the property being parsed.
+   */
+  private void parseUnifierElement(StramElement element, Conf conf1, String[] keys, int index, String propertyName, String propertyValue)
   {
     Conf elConf = addConf(element, null, conf1);
     if (elConf != null) {
@@ -2282,6 +2305,10 @@ public class LogicalPlanConfiguration {
         List<PortConf> portConfs = getMatchingChildConf(opConfs, om.getPortName(), StramElement.PORT);
         outPortConfs.addAll(portConfs);
         setAttributes(outPortConfs, om.getAttributes());
+        List<OperatorConf> unifConfs = getMatchingChildConf(outPortConfs, null, StramElement.UNIFIER);
+        if(unifConfs.size() != 0) {
+          setAttributes(unifConfs, om.getUnifierMeta().getAttributes());
+        }
       }
       ow.populateAggregatorMeta();
     }
