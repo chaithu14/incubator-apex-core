@@ -41,7 +41,6 @@ import java.util.concurrent.atomic.AtomicInteger;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import org.apache.commons.collections.CollectionUtils;
 import org.apache.commons.lang.StringUtils;
 
 import com.google.common.annotations.VisibleForTesting;
@@ -1033,7 +1032,7 @@ public class PhysicalPlan implements Serializable
 
     // If the unifier is not present at initial launch, then there is possible of changes in existing partition
     // mappings.
-    if (mainPC.currentPartitions.size() == 1) {
+    /*if (mainPC.currentPartitions.size() == 1) {
       for (Map.Entry<OutputPortMeta, StreamMeta> opm : downStreamMapping.logicalOperator.getOutputStreams().entrySet()) {
         StreamMapping ug = downStreamMapping.outputStreams.get(opm.getKey());
         if (ug == null) {
@@ -1056,7 +1055,7 @@ public class PhysicalPlan implements Serializable
           }
         }
       }
-    }
+    }*/
     updateStreamMappings(currentMapping);
     for (PMapping pp : partitionContexts.keySet()) {
       updateStreamMappings(pp);
@@ -1076,8 +1075,10 @@ public class PhysicalPlan implements Serializable
   private void updateStreamMappings(PMapping m)
   {
     for (Map.Entry<OutputPortMeta, StreamMeta> opm : m.logicalOperator.getOutputStreams().entrySet()) {
+      LOG.info("updateStreamMapping: {} -> {}", opm.getKey(), opm.getValue());
       StreamMapping ug = m.outputStreams.get(opm.getKey());
       if (ug == null) {
+        LOG.info("UG is null");
         ug = new StreamMapping(opm.getValue(), this);
         m.outputStreams.put(opm.getKey(), ug);
       }
@@ -1163,6 +1164,12 @@ public class PhysicalPlan implements Serializable
     // include new operators and their dependencies for deployment
     deployOperators.addAll(ndeps);
 
+    for (PTOperator op: this.undeployOpers) {
+      LOG.info("Undeploy: {} -> {}", op.getId(), op.getName());
+    }
+    for (PTOperator op: deployOperators) {
+      LOG.info("deploy: {} -> {}", op.getId(), op.getName());
+    }
     //make sure all the new operators are included in deploy operator list
     this.deployOpers.addAll(this.newOpers.keySet());
     ctx.deploy(releaseContainers, this.undeployOpers, newContainers, deployOperators);

@@ -18,6 +18,7 @@
  */
 package com.datatorrent.stram.plan.physical;
 
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
@@ -25,6 +26,8 @@ import java.util.Set;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+
+import org.apache.commons.collections.CollectionUtils;
 
 import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
@@ -93,6 +96,7 @@ public class StreamMapping implements java.io.Serializable
         }
       }
     }
+    LOG.info("Upstream size: {}", upstream.size());
     redoMapping();
   }
 
@@ -204,6 +208,10 @@ public class StreamMapping implements java.io.Serializable
 
     Set<Pair<PTOperator, InputPortMeta>> downstreamOpers = Sets.newHashSet();
 
+    if (streamMeta.getSinks() != null) {
+      LOG.info("redo sinks size: {}", streamMeta.getSinks().size());
+    }
+
     // figure out the downstream consumers
     for (InputPortMeta ipm : streamMeta.getSinks()) {
       // gets called prior to all logical operators mapped
@@ -216,6 +224,7 @@ public class StreamMapping implements java.io.Serializable
       }
     }
 
+    LOG.info("downstreamOpers size: {}", downstreamOpers.size());
     if (!downstreamOpers.isEmpty()) {
       // unifiers are required
       for (PTOperator unifier : this.cascadingUnifiers) {
@@ -283,6 +292,8 @@ public class StreamMapping implements java.io.Serializable
         if (upstream.size() > 1) {
           if (!separateUnifiers && ((pks == null || pks.mask == 0) || lastSingle)) {
             if (finalUnifier == null) {
+              LOG.info("finalunifier = null");
+              cleanMappings();
               finalUnifier = createUnifier(streamMeta, plan);
             }
             setInput(doperEntry.first, doperEntry.second, finalUnifier, (pks == null) || (pks.mask == 0) ? null : pks);
@@ -297,9 +308,13 @@ public class StreamMapping implements java.io.Serializable
             LOG.debug("MxN unifier for {} {} {}", new Object[] {doperEntry.first, doperEntry.second.getPortName(), pks});
             PTOperator unifier = doperEntry.first.upstreamMerge.get(doperEntry.second);
             if (unifier == null) {
+              LOG.info("Unifier is null");
+              //cleanMappings();
               unifier = createUnifier(streamMeta, plan);
               doperEntry.first.upstreamMerge.put(doperEntry.second, unifier);
               setInput(doperEntry.first, doperEntry.second, unifier, null);
+              LOG.info("doperEntry Key: {} -> {}", doperEntry.first.getId(), doperEntry.first.getName());
+              LOG.info("doperEntry Value: {} -> {}", doperEntry.second.getPortName(), doperEntry.second.toString());
             }
             // sources may change dynamically, rebuild inputs (as for cascading unifiers)
             for (PTInput in : unifier.inputs) {
@@ -382,4 +397,20 @@ public class StreamMapping implements java.io.Serializable
     unifier.inputs.clear();
   }
 
+  private void cleanMappings()
+  {
+    for (PTOutput out: upstream) {
+      if (CollectionUtils.isEmpty(out.sinks)) {
+        continue;
+      }
+      for (PTInput sinkIn: out.sinks) {
+        ArrayList<PTInput> cowInputs = Lists.newArrayList(sinkIn.target.inputs);
+        cowInputs.remove(sinkIn);
+        sinkIn.target.inputs = cowInputs;
+      }
+      out.sinks.clear();
+      plan.undeployOpers.add(out.source);
+      plan.deployOpers.add(out.source);
+    }
+  }
 }
