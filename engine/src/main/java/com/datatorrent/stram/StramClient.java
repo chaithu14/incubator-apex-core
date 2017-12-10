@@ -55,6 +55,7 @@ import org.apache.hadoop.security.Credentials;
 import org.apache.hadoop.security.UserGroupInformation;
 import org.apache.hadoop.security.token.Token;
 import org.apache.hadoop.yarn.api.ApplicationConstants;
+import org.apache.hadoop.yarn.api.records.ApplicationAccessType;
 import org.apache.hadoop.yarn.api.records.ApplicationId;
 import org.apache.hadoop.yarn.api.records.ApplicationReport;
 import org.apache.hadoop.yarn.api.records.ApplicationSubmissionContext;
@@ -442,11 +443,20 @@ public class StramClient
       amContainer.setTokens(fsTokens);
     }
 
+    /*Map<ApplicationAccessType, String> acls = new HashMap<ApplicationAccessType, String>(2);
+    acls.put(ApplicationAccessType.VIEW_APP, "*");
+    acls.put(ApplicationAccessType.MODIFY_APP, "*");
+    amContainer.setApplicationACLs(acls);*/
     // Setup ACLs for the impersonating user
-    LOG.debug("ACL login user {} current user {}", UserGroupInformation.getLoginUser(), UserGroupInformation.getCurrentUser());
+    LOG.info("ACL login user {} current user {}", UserGroupInformation.getLoginUser(), UserGroupInformation.getCurrentUser());
     if (!UserGroupInformation.getCurrentUser().equals(UserGroupInformation.getLoginUser())) {
       ACLManager.setupUserACLs(amContainer, UserGroupInformation.getLoginUser().getShortUserName(), conf);
     }
+    Map<ApplicationAccessType, String> contacls = amContainer.getApplicationACLs();
+    for (Map.Entry<ApplicationAccessType, String> e: contacls.entrySet()) {
+      LOG.info("Container ACLS: {} -> {}", e.getKey(), e.getValue());
+    }
+    LOG.info("---Container ACL Size: {}", contacls.size());
 
     // set local resources for the application master
     // local files or archives as needed

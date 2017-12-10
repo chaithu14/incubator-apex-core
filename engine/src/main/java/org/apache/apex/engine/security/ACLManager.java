@@ -45,7 +45,7 @@ public class ACLManager
     if (areACLsRequired(conf)) {
       logger.debug("Configuring ACLs for {}", userName);
       Map<ApplicationAccessType, String> acls = Maps.newHashMap();
-      acls.put(ApplicationAccessType.VIEW_APP, userName);
+      //acls.put(ApplicationAccessType.VIEW_APP, userName);
       acls.put(ApplicationAccessType.MODIFY_APP, userName);
       launchContext.setApplicationACLs(acls);
     }
